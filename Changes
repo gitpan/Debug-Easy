@@ -1,6 +1,8 @@
-Revision history for Perl extension Debug::Easy.
+Revision history for Debug-Easy
 
-0.01  Fri Apr 19 00:36:35 2013
-	- original version; created by h2xs 1.23 with options
-		-AX Debug::Easy
+0.01    Date/time
+        Initial private use release.
+
+0.02    June 14, 2013
+        Actual public release
 

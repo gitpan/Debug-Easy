@@ -1,194 +1,450 @@
+#############################################################################
+#####################     Easy Debugging Module     #########################
+##################### Copyright 2013 Richard Kelsch #########################
+#####################      All Rights Reserved      #########################
+#############################################################################
+
 package Debug::Easy;
 
 use strict;
-use Carp;
 
-our $VERSION = '0.01';
-our $RCFileLoc;
+use Term::ANSIColor;
+use Log::Fast;
+use Time::HiRes qw(time);
+use Data::Dumper::Simple;
 
-sub init {
-  my ($opts) = @_;
-
-  ## Source file for debug commands, if provided
-  my $src = ($opts && $opts->{src})?$opts->{src}:undef;
-
-  ## Get the command line - basically to check if already running under debugger
-  my @cmdLine = `ps -o args $$`;
-
-  ## Invoke debugger only when not already running under one
-  if ($cmdLine[1] !~ /-d/) {
-      my $rcFile;
-
-      unless((open $rcFile, ">.perldb") && do {$RCFileLoc = '.perldb';}) {
-          (open $rcFile, ">$ENV{HOME}/.perldb") && do {$RCFileLoc = "$ENV{HOME}/.perldb";} 
-                        || croak "Could not open .perldb for writing";
-      }
-
-      setParseOptions($rcFile,$opts);
-
-      if ($src) {
-          my $srcFile;
-          open $srcFile, "<$src" || croak "Could not open $src for writing";
-
-          setSourceFile($rcFile, $srcFile);
-
-          close $srcFile;
-      }
-   
-      close($rcFile);
-
-      ## All settings done, run with debugger now 
-      exec "$^X -d $0 @ARGV";
-  }
+BEGIN {
+    require Exporter;
+    # set the version for version checking
+    our $VERSION   = 0.03;
+    # Inherit from Exporter to export functions and variables
+    our @ISA       = qw(Exporter);
+    # Functions and variables which are exported by default
+    our @EXPORT    = qw(@Levels);
+    # Functions and variables which can be optionally exported
+    our @EXPORT_OK = qw();
 }
 
-## Set parse_options parameters in rc file.
-## Can be used for writing free form debug customizations also
-sub setParseOptions {
-    my ($rc, $opt) = @_;
+# Not used, but exported if the coder wants to use it as some sort
+# of index or reference.
+our @Levels = qw( ERR WARN NOTICE INFO VERBOSE DEBUG DEBUGMAX );
 
-    ## All the rc file content provided as free form text
-    if ($opt && defined $opt->{freecontent}) {
-        print $rc $opt->{freecontent};
-    }
-    else {
-        ## parse_options string provided verbatim
-        if ($opt && defined $opt->{parseoptions}) {
-            print $rc "parse_options($$opt{parseoptions});\n";
-        }
-        else {
-            ## User specified or default
-            my $interActive = ($opt && defined $opt->{interactive})?$opt->{interactive}:1;
-            my $outputFile  = ($opt && defined $opt->{outputfile})?$opt->{outputfile}:'db.out';
-            my $autoTrace   = ($opt && defined $opt->{autotrace})?$opt->{autotrace}:1;
-            my $frame       = ($opt && defined $opt->{frame})?$opt->{frame}:6;
+my %ANSILevel = (); # Global debug level colorized messages hash.
+my $LOG = Log::Fast->global();
+my $MASTERSTART = time; # Script start timestamp.
 
-            print "Info :: Debug outputs can be obtained in $outputFile\n";
-
-            print $rc "parse_options(\"NonStop=$interActive LineInfo=$outputFile AutoTrace=$autoTrace frame=$frame\");","\n";
-        }
-    }
+END { # We spit out one last message before we die, the total execute time.
+    my $bench = colored(['bright_cyan on_black'],sprintf('%06s',sprintf('%.02f',(time - $MASTERSTART))));
+    $LOG->DEBUG(' %s%s %s',$bench,$ANSILevel{'DEBUG'}, colored(['black on_white'],'---- Script complete ----'));
 }
 
-## Sets debug commands to a file
-## to be fed to debugger while running
-sub setSourceFile {
-    my ($rc, $src) = @_;
+# This module uses the Log::Fast library heavily.  Many of the
+# Log::Fast variables and features can work here.
+sub new {
+    my $class = shift;
 
-    ## Read from source file line by line
-    my $srcCmdStr;
-    while (my $line = <$src>) {
-        chomp $line;
-        $srcCmdStr .= "'$line',";
+    my $self = {
+		'LogLevel'           => 'ERR',       # Default is errors only
+		'Type'               => 'fh',
+		'Path'               => '/var/log',
+		'FileHandle'         => \*STDERR,
+		'MasterStart'        => $MASTERSTART, # Pull in the script start timestamp
+		'ERR_LastStamp'      => time,
+		'WARN_LastStamp'     => time,
+		'INFO_LastStamp'     => time,
+		'NOTICE_LastStamp'   => time,
+		'DEBUG_LastStamp'    => time,
+		'DEBUGMAX_LastStamp' => time,
+		'LOG'                => $LOG, # Pull in the global Log::Fast object.
+		'Color'              => 1,
+		'DateStamp'          => colored(['yellow on_black'],'%D'),
+		'TimeStamp'          => colored(['yellow on_black'],'%T'),
+		'Padding'            => -25,
+		'Prefix'             => '',
+		@_
+    };
+    # This instructs the ANSIColor library to turn off coloring,
+    # if the Color attribute is set to zero.
+    $ENV{'ANSI_COLORS_DISABLED'} = 1 if ($self->{'Color'} =~ /0|FALSE|OFF/i);
+
+    %ANSILevel = (
+		'ERR'       => colored(['white on_red'],       '[ ERROR ]'),
+		'WARN'      => colored(['black on_yellow'],    '[WARNING]'),
+		'NOTICE'    => colored(['black on_magenta'],   '[NOTICE ]'),
+		'INFO'      => colored(['white on_black'],     '[ INFO  ]'),
+		'DEBUG'     => colored(['bold green on_black'],'[ DEBUG ]'),
+		'DEBUGMAX'  => colored(['bold green on_black'],'[-DEBUG-]')
+    );
+    # This assembles the Time and Date stamping output.  If any of the
+    # variables are blank, then that part will be disabled.
+    $self->{'Prefix'} = $self->{'DateStamp'} . ' ' . $self->{'TimeStamp'};
+
+    # The Global loglevel is set here.
+    if ($self->{'LogLevel'} eq 'VERBOSE') {
+		$self->{'LOG'}->level('INFO');
+    } elsif ($self->{'LogLevel'} eq 'DEBUGMAX') {
+		$self->{'LOG'}->level('DEBUG');
+    } else {
+		$self->{'LOG'}->level( $self->{'LogLevel'} );
     }
 
-    ## RC file directive to feed to @DB::typeahead
-    if($srcCmdStr) {
-        $srcCmdStr =~ s/,$//;
-        print $rc "sub afterinit { push \@DB::typeahead,$srcCmdStr;}","\n";
-    }
+    $self->{'LOG'}->config({
+							   'type'   => $self->{'Type'},
+							   'path'   => $self->{'Path'},
+							   'prefix' => $self->{'Prefix'},
+							   'fh'     => $self->{'FileHandle'}
+						   });
+    $self->{'LOG'}->DEBUG('   %.02f%s %s',0,$ANSILevel{'DEBUG'}, colored(['black on_white'],'----- Script begin -----'));
+    bless($self,$class);
+    return($self);
 }
+sub debug {
+    my $self  = shift;
+    my $cline = shift;
+    my $level = shift;
+    my $msgs  = shift;
 
-## Call this if you want to clean up the rc files
-sub end {
-    ## Clean up of RC files - call end() optionally
-    foreach my $rcFile ("$ENV{HOME}/.perldb",".perldb") {
-        if (-f $rcFile) {
-            print "Warning :: Removing $rcFile\n";
-            unlink $rcFile || croak "Error :: Could not remove $rcFile\n";
-        }
+    my @messages;
+
+    if (ref($msgs) eq 'SCALAR') {
+		push(@messages,$msgs);
+    } elsif (ref($msgs) eq 'ARRAY') {
+		@messages = @{$msgs};
+    } else {
+		push(@messages,Dumper($msgs));
     }
+
+    my ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask) = caller(1);
+    if (! defined($subroutine) || $subroutine eq '') {
+		$subroutine = 'main';
+    }
+    if (length($subroutine) > abs($self->{'Padding'})) {
+		$self->{'Padding'} = 0 - length($subroutine);
+    }
+    my $thisBench = sprintf('%7s',sprintf(' %.02f',time - $self->{$level . '_LastStamp'})) . $ANSILevel{$level} . '[' . colored(['bold cyan on_black'],sprintf('%' . $self->{'Padding'} . 's>%04d',$subroutine,$cline)) . ']';
+    my $nested = do { my $n=0; 1 while caller(2 + $n++); ' ' x $n };
+    foreach my $msg (@messages) {
+		if ($msg =~ /\n/s) {
+			my @message = split(/\n/,$msg);
+			foreach my $line (@message) {
+				if ($level eq 'INFO' && $self->{'LogLevel'} eq 'VERBOSE') {
+					$self->{'LOG'}->config({'prefix' => ''});
+					$self->{'LOG'}->$level($line);
+					$self->{'LOG'}->config({'prefix' => $self->{'Prefix'}});
+				} elsif ($level eq 'DEBUGMAX') {
+					if ($self->{'LogLevel'} eq 'DEBUGMAX') {
+						$self->{'LOG'}->DEBUG($thisBench . $nested . $line);
+					}
+				} else {
+					$self->{'LOG'}->$level($thisBench . $nested . $line);
+				}
+			}
+		} else {
+			if ($level eq 'INFO' && $self->{'LogLevel'} eq 'VERBOSE') {
+				$self->{'LOG'}->config({'prefix' => ''});
+				$self->{'LOG'}->INFO($msg);
+				$self->{'LOG'}->config({'prefix' => $self->{'Prefix'}});
+			} elsif ($level eq 'DEBUGMAX') {
+				if ($self->{'LogLevel'} eq 'DEBUGMAX') {
+					$self->{'LOG'}->DEBUG($thisBench . $nested . $msg);
+				}
+			} else {
+				$self->{'LOG'}->$level($thisBench . $nested . $msg);
+			}
+		}
+    }
+    $self->{$level . '_LastStamp'} = time;
 }
 
 1;
 
+__END__
+
 =head1 NAME
 
-Debug::Easy - Customize how to run debugger
-              Specify configurable debug options as part of rc file ie .perldb or ~/.perldb under Unix.
-              Specify runtime debug commands into a file and source to debugger 
-              - works for interactive/non interactive both modes
-                       
+Debug::Easy - A Handy Debugging Module
+
 =head1 SYNOPSIS
 
-  use Debug::Easy;
+ use Debug::Easy;
 
-  Debug::Easy::init();
+ my $debug = Debug::Easy->new( 'LogLevel' => 'DEBUG', 'Color' => 1 );
 
-      - Initializes debugger with a few default parse options eg.
-        NonStop=1 LineInfo=db.out AutoTrace=1 frame=6
-        No source command file given, debugger goes through normal execution flow.
+ my $debug_level = 'NOTICE';
 
-  Debug::Easy::init({'src'=>'tmp.cmd'});
+ # $debug_level is the maximum level to report, and ignore the rest.
+ # It must be the first parameter passed to the object, when outputing
+ # a specific message.  This identifies to the module what type of
+ # message it is.
+ #
+ # The following is a list, in order of level, of the parameter to
+ # pass to the debug method:
+ #
+ #  ERR      = Error
+ #  WARN     = Warning
+ #  NOTICE   = Notice
+ #  INFO     = Information
+ #  VERBOSE  = Special version of INFO that does not output any
+ #             Logging headings and goes to STDOUT instead of STDERR.
+ #             Very useful for verbose modes in your scripts.
+ #  DEBUG    = Level 1 Debugging messages
+ #  DEBUGMAX = Level 2 Debugging messages
 
-      - Default parameters for parse_options, commands read from tmp.cmd
+ $debug->debug(__LINE__,$debug_level,"Message");
 
-  Debug::Easy::init({'src'=>'tmp.cmd', 'interactive' => 0, 'outputfile' => 'debug.out',
-                     'autotrace' => 0, 'frame' => 2});
+ $debug->debug(__LINE__,'ERR',      ['Error message']);
+ $debug->debug(__LINE__,'WARN',     ['Warning message']);
+ $debug->debug(__LINE__,'NOTICE',   ['Notice message']);
+ $debug->debug(__LINE__,'INFO',     ['Information and VERBOSE mode message']);
+ $debug->debug(__LINE__,'DEBUG',    ['Level 1 Debug message']);
+ $debug->debug(__LINE__,'DEBUGMAX', ['Level 2 Debug message']);
 
-      - Sets parse_options as NonStop=0 LineInfo=debug.out AutoTrace=0 frame=2
+ my @messages = ('First Message','Second Message',"Third\nMessage");
 
-  Debug::Easy::init({'src'=>'tmp.cmd','parseoptions' => 'blah blah'});
+ $debug->debug(__LINE__,$debug_level,\@messages);
 
-      - Sets parse_options("blah blah");
+=head1 DESCRIPTION
 
-  Debug::Easy::init({'freecontent' => 'free form text blah blah....'});
-   
-      - Writes 'free form text blah blah' to rc file as is.
-        Care should be taken while passing content like this.
+This module makes it easy to add debugging features to your code,
+Without having to re-invent the wheel.  It uses STDERR and ANSI color
+Formatted text output, as well as indented and multiline text
+formatting, to make things easy to read.
 
-  Debug::Easy::end();
+Benchmarking is automatic, to make it easy to spot bottlenecks in code.
+It automatically stamps from where it was called, and makes debug
+coding so much easier, without having to include the location of the
+debugging location in your debug message.  This is all taken care of
+for you.
 
-      - This can be optionally called at the end of the debuuged program
-        if rc files created needs to be cleaned up                
-  
-=head1 ABSTRACT
+It also allows multiple output levels from errors only, to
+warnings, to notices, to verbose information, to full on debug output.
+All of this fully controllable by the coder.
 
-  This module tries to make debugging easy by letting user specify configurable
-  options particulary when running in non-interactive mode.
+It is essentially a smart wrapper on top of Log::Fast.
 
-  Apart from the configurable options, a source can be created on the run with user
-  specified contents and run with debugger.
+=head1 PARAMETERS
 
-=head1 METHODS
+=head2 LogLevel [level]
 
-  init() :: public
+This adjusts the global log level of the Debug object.  It requires
+a string.
 
-      - Initializes configurable options and rc file if any.
+=over 1
 
-  end() :: public
+=item B<ERROR> (default)
 
-      - Cleans up rc files created during execution if any.
+This level shows only error messages and all other messages are not
+shown.
 
-  setParseOptions :: private
+=item B<WARN>
 
-      - Sets up parse_options and other configurable directives.
+This level shows error and warning messages.  All other messages are
+not shown.
 
-  setSourceFile :: private
+=item B<NOTICE>
 
-      - Creates rc file if required.
+This level shows error, warning, and notice messages.  All other
+messages are not shown.
 
-=head1 CAVEATS
+=item B<INFO>
 
-  It works only for a few versions of Unix/Linux.
-  Further improvement plan involves avoiding creating of rc file and using debug hooks. 
+This level shows error, warning, notice, and information messages.
+Only debug level messages are not shown.
 
-=head1 Similar Modules
+=item B<VERBOSE>
 
-  Debug::Simple
+This level can be used as a way to do "Verbose" output for your
+scripts.  It ouputs INFO level messages without logging headers
+and on STDOUT instead of STDERR.
+
+=item B<DEBUG>
+
+This level shows error, warning, notice, information, and level 1
+debugging messages.  Level 2 Debug messages are not shown.
+
+=item B<DEBUGMAX>
+
+This level shows all messages, including level 2 debugging messages.
+
+=back
+
+=head2 Color [boolean] (Not case sensitive)
+
+=over 1
+
+=item B<0>, B<Off>, or B<False> (Off)
+
+This turns off colored output.  Everything is plain text only.
+
+=item B<1>, B<On>, or B<True> (On - Default)
+
+This turns on colored output.  This makes it easier to spot all of
+the different types of messages throughout a sea of debug output.
+You can pipe the output to Less, and see color, by using it's
+switch "-r".
+
+=back
+
+=head2 TimeStamp [pattern]
+
+Make this an empty string to turn it off, otherwise:
+
+=over 1
+
+=item B<%T>
+
+Formats the timestamp as HH:MM:SS.  This is the default for the
+timestamp.
+
+=item B<%S>
+
+Formats the timestamp as seconds.milliseconds.  Normally not needed,
+as the benchmark is more helpful.
+
+=item B<%T %S>
+
+Combines both of the above.  Normally this is just too much, but here
+if you really want it.
+
+=back
+
+=head2 DateStamp [pattern]
+
+Make this an empty string to turn it off, otherwise:
+
+=over 1
+
+=item B<%D>
+
+Formats the datestamp as YYYY-MM-DD.  It is the default, and the only
+option.
+
+=back
+
+=head2 B<Type>
+
+Output type. Possible values are: 'fh' (output to any already open
+filehandle) and 'unix' (output to syslog using UNIX socket).
+
+=over 1
+
+=item B<fh>
+
+When set to 'fh', you have to also set {FileHandle} to any open filehandle
+(like "\*STDERR", which is the default).
+
+=item B<unix>
+
+When set to 'unix', you have to also set {FileHandle} to a path pointing to an
+existing unix socket (typically it's '/dev/log').
+
+=back
+
+=head2 FileHandle
+
+ File handle to write log messages if {Type} set to 'fh' (which is the default).
+
+ Syslog's UNIX socket path to write log messages if {Type} set to 'unix'.
+
+=head1 EXPORTED VARIABLES
+
+=head2 @Levels
+
+ A simple list of all the acceptable debug levels to pass to the {debug} method,
+ and the {new} method.
+
+=head1 AUTHOR
+
+Richard Kelsch <rich@rk-internet.com>
+
+Copyright 2013 Richard Kelsch, All Rights Reserved.
+
+This program is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+=head1 VERSION
+
+Version 0.02    (June 14, 2013)
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-easydebug at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=EasyDebug>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
-  debashish@cpan.org
+You can find documentation for this module with the perldoc command.
+
+    perldoc Debug::Easy
+
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Debug-Easy>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Debug-Easy>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Debug-Easy>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Debug-Easy/>
+
+=back
+
 
 =head1 ACKNOWLEDGEMENTS
 
-=head1 COPYRIGHT & LICENSE
 
-Copyright 2013 Debashish Parasar, all rights reserved.
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2013 Richard Kelsch.
 
 This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+under the terms of the the Artistic License (2.0). You may obtain a
+copy of the full license at:
+
+L<http://www.perlfoundation.org/artistic_license_2_0>
+
+Any use, modification, and distribution of the Standard or Modified
+Versions is governed by this Artistic License. By using, modifying or
+distributing the Package, you accept this license. Do not use, modify,
+or distribute the Package, if you do not accept this license.
+
+If your Modified Version has been derived from a Modified Version made
+by someone other than you, you are nevertheless required to ensure that
+your Modified Version complies with the requirements of this license.
+
+This license does not grant you the right to use any trademark, service
+mark, tradename, or logo of the Copyright Holder.
+
+This license includes the non-exclusive, worldwide, free-of-charge
+patent license to make, have made, use, offer to sell, sell, import and
+otherwise transfer the Package with respect to any patent claims
+licensable by the Copyright Holder that are necessarily infringed by the
+Package. If you institute patent litigation (including a cross-claim or
+counterclaim) against any party alleging that the Package constitutes
+direct or contributory patent infringement, then this Artistic License
+to you shall terminate on the date that such litigation is filed.
+
+Disclaimer of Warranty: THE PACKAGE IS PROVIDED BY THE COPYRIGHT HOLDER
+AND CONTRIBUTORS "AS IS' AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
+THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, OR NON-INFRINGEMENT ARE DISCLAIMED TO THE EXTENT PERMITTED BY
+YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
+CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
+CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 
 =cut
- 
+1;
