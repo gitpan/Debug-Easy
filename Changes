@@ -6,3 +6,12 @@ Revision history for Debug-Easy
 0.02    June 14, 2013
         Actual public release
 
+0.03    January 8, 2014
+        Minor operational improvements
+
+0.04    March 11, 2014
+        Parameters for initialization are now case-insensitive.
+
+        Multiline output only shows the benchmark time for the
+		first line to avoid confusion.
+

@@ -13,6 +13,10 @@ WriteMakefile(
     MIN_PERL_VERSION => 5.006,
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
+		'Data::Dumper::Simple' => 0,
+		'Log::Fast' => 0,
+		'Time::HiRes' => 0,
+		'Term::ANSIColor' => 0,
     },
     BUILD_REQUIRES => {
         'Test::More' => 0,
