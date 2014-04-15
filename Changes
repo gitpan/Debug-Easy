@@ -12,6 +12,8 @@ Revision history for Debug-Easy
 0.04    March 11, 2014
         Parameters for initialization are now case-insensitive.
 
-        Multiline output only shows the benchmark time for the
-		first line to avoid confusion.
+0.05    April 14, 2014
+        Multiline output only shows the benchmark time for the first line to
+		avoid confusion.  This fix was previously listed in version 0.04, but
+		was never actually implemented, sorry.
 

@@ -18,7 +18,7 @@ use Data::Dumper::Simple;
 BEGIN {
     require Exporter;
     # set the version for version checking
-    our $VERSION   = 0.04;
+    our $VERSION   = 0.05;
     # Inherit from Exporter to export functions and variables
     our @ISA       = qw(Exporter);
     # Functions and variables which are exported by default
@@ -388,6 +388,7 @@ sub debug {
 						$self->{'LOG'}->$level($thisBench2 . $nested . $line);
 					}
 				}
+				$first = 0;
 			}
 		} else {
 			if ($level eq 'INFO' && $self->{'LOGLEVEL'} eq 'VERBOSE') {
@@ -402,6 +403,7 @@ sub debug {
 				$self->{'LOG'}->$level($thisBench . $nested . $msg);
 			}
 		}
+		$first = 0;
     }
     $self->{$level . '_LASTSTAMP'} = time;
 }
@@ -417,7 +419,7 @@ modify it under the same terms as Perl itself.
 
 =head1 VERSION
 
-Version 0.02    (June 14, 2013)
+Version 0.05    (April 14, 2014)
 
 =head1 BUGS
 
@@ -453,7 +455,6 @@ L<http://cpanratings.perl.org/d/Debug-Easy>
 L<http://search.cpan.org/dist/Debug-Easy/>
 
 =back
-
 
 =head1 ACKNOWLEDGEMENTS
 
