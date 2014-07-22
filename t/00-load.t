@@ -7,7 +7,7 @@ use Test::More;
 plan tests => 1;
 
 BEGIN {
-    use_ok( 'Debug::Easy' ) || print "Bail out!\n";
+    use_ok('Debug::Easy') || print "Bail out!\n";
 }
 
-diag( "Testing Debug::Easy $Debug::Easy::VERSION, Perl $], $^X" );
+# diag( "Testing Debug::Easy $Debug::Easy::VERSION, Perl $], $^X" );

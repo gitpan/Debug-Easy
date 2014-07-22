@@ -1,6 +1,6 @@
 Revision history for Debug-Easy
 
-0.01    Date/time
+0.01    2011
         Initial private use release.
 
 0.02    June 14, 2013
@@ -14,6 +14,28 @@ Revision history for Debug-Easy
 
 0.05    April 14, 2014
         Multiline output only shows the benchmark time for the first line to
-		avoid confusion.  This fix was previously listed in version 0.04, but
-		was never actually implemented, sorry.
+        avoid confusion.  This fix was previously listed in version 0.04, but
+        was never actually implemented, sorry.
+
+0.06    July 18, 2014
+        Benchmark data turned on for first line only for multiline output.
+
+	    Corrections and additions to documentation.
+
+        Additions to code comments
+
+        Simplified 'debug' object and split it into two.
+
+        Added tests to build process
+
+0.07    July 19, 2014
+        Added the ability to customize the debug level labels
+        
+        Fixed the warning message in the END block that was reported during testing.
+        This was caused when the module is loaded, but the object never created (which
+        happens in one of the tests).
+        
+        Additional code comments added
+        
+        Tweaks to the Makefile.PL build script to allow for parallel testing
 

@@ -13,27 +13,31 @@ use strict;
 use Term::ANSIColor;
 use Log::Fast;
 use Time::HiRes qw(time);
-use Data::Dumper::Simple;
+use Data::Dumper::Simple; # You can use Data::Dumper, but it is less friendly
 
 BEGIN {
     require Exporter;
+
     # set the version for version checking
-    our $VERSION   = 0.05;
+    our $VERSION = 0.08;
+
     # Inherit from Exporter to export functions and variables
-    our @ISA       = qw(Exporter);
+    our @ISA = qw(Exporter);
+
     # Functions and variables which are exported by default
-    our @EXPORT    = qw(@Levels);
+    our @EXPORT = qw(@Levels);
+
     # Functions and variables which can be optionally exported
     our @EXPORT_OK = qw();
-}
+} ## end BEGIN
 
 # Not used, but exported if the coder wants to use it as some sort
 # of index or reference.
-our @Levels = qw( ERR WARN NOTICE INFO VERBOSE DEBUG DEBUGMAX );
+our @Levels = qw( ERR WARN NOTICE INFO VERBOSE DEBUG DEBUGMAX DEBUGWAIT );
 
-my %ANSILevel = (); # Global debug level colorized messages hash.
-my $LOG = Log::Fast->global();
-my $MASTERSTART = time; # Script start timestamp.
+my %ANSILevel   = ();                     # Global debug level colorized messages hash.  It will be filled in later.
+my $LOG         = Log::Fast->global();    # Let's snag the Log::Fast object.
+my $MASTERSTART = time;                   # Script start timestamp.
 
 =head1 NAME
 
@@ -47,23 +51,34 @@ Debug::Easy - A Handy Debugging Module
 
  my $debug_level = 'NOTICE';
 
+ # The first parameter to pass to the object is the line number.
+ # Typically this is the Perl internal variable '__LINE__'.
+ #
  # $debug_level is the maximum level to report, and ignore the rest.
- # It must be the first parameter passed to the object, when outputing
+ # It must be the second parameter passed to the object, when outputing
  # a specific message.  This identifies to the module what type of
  # message it is.
  #
  # The following is a list, in order of level, of the parameter to
  # pass to the debug method:
  #
- #  ERR      = Error
- #  WARN     = Warning
- #  NOTICE   = Notice
- #  INFO     = Information
- #  VERBOSE  = Special version of INFO that does not output any
- #             Logging headings and goes to STDOUT instead of STDERR.
- #             Very useful for verbose modes in your scripts.
- #  DEBUG    = Level 1 Debugging messages
- #  DEBUGMAX = Level 2 Debugging messages
+ #  ERR       = Error
+ #  WARN      = Warning
+ #  NOTICE    = Notice
+ #  INFO      = Information
+ #  VERBOSE   = Special version of INFO that does not output any
+ #              Logging headings and goes to STDOUT instead of STDERR.
+ #              Very useful for verbose modes in your scripts.
+ #  DEBUG     = Level 1 Debugging messages
+ #  DEBUGMAX  = Level 2 Debugging messages
+ #  DEBUGWAIT = Level 3 Debugging where execution is halted until a key
+ #              is pressed
+ #
+ # The third parameter is either a string or a reference to an array
+ # of strings to output as multiple lines.
+ #
+ # Each string can contain newlines, which will also be split into
+ # a separate line and formatted accordingly.
 
  $debug->debug(__LINE__,$debug_level,"Message");
 
@@ -73,6 +88,7 @@ Debug::Easy - A Handy Debugging Module
  $debug->debug(__LINE__,'INFO',     ['Information and VERBOSE mode message']);
  $debug->debug(__LINE__,'DEBUG',    ['Level 1 Debug message']);
  $debug->debug(__LINE__,'DEBUGMAX', ['Level 2 Debug message']);
+ $debug->debug(__LINE__,'DEBUGWAIT',['Level 3 Debug message with wait']);
 
  my @messages = ('First Message','Second Message',"Third\nMessage");
 
@@ -83,7 +99,8 @@ Debug::Easy - A Handy Debugging Module
 This module makes it easy to add debugging features to your code,
 Without having to re-invent the wheel.  It uses STDERR and ANSI color
 Formatted text output, as well as indented and multiline text
-formatting, to make things easy to read.
+formatting, to make things easy to read.  NOTE:  It is generally
+defaulted to output in a format for viewing on wide terminals!
 
 Benchmarking is automatic, to make it easy to spot bottlenecks in code.
 It automatically stamps from where it was called, and makes debug
@@ -95,7 +112,7 @@ It also allows multiple output levels from errors only, to
 warnings, to notices, to verbose information, to full on debug output.
 All of this fully controllable by the coder.
 
-It is essentially a smart wrapper on top of Log::Fast.
+It is essentially a smart wrapper on top of Log::Fast to enhance it.
 
 =head1 EXPORTED VARIABLES
 
@@ -106,9 +123,9 @@ It is essentially a smart wrapper on top of Log::Fast.
 
 =cut
 
-END { # We spit out one last message before we die, the total execute time.
-    my $bench = colored(['bright_cyan on_black'],sprintf('%06s',sprintf('%.02f',(time - $MASTERSTART))));
-    $LOG->DEBUG(' %s%s %s',$bench,$ANSILevel{'DEBUG'}, colored(['black on_white'],'---- Script complete ----'));
+END {    # We spit out one last message before we die, the total execute time.
+    my $bench = colored(['bright_cyan on_black'], sprintf('%06s', sprintf('%.02f', (time - $MASTERSTART))));
+    $LOG->DEBUG(' %s%s %s', $bench, $ANSILevel{'DEBUG'}, colored(['black on_white'], '---- Script complete ----')) if (defined($ANSILevel{'DEBUG'}) && defined($LOG));
 }
 
 =head1 METHODS
@@ -159,7 +176,11 @@ debugging messages.  Level 2 Debug messages are not shown.
 
 =item B<DEBUGMAX>
 
-This level shows all messages, including level 2 debugging messages.
+This level shows all messages up to level 2 debugging messages.
+
+=item B<DEBUGWAIT>
+
+This level shows all messages, but also waits for a keypress.
 
 =back
 
@@ -241,80 +262,121 @@ Make this an empty string to turn it off, otherwise:
 
  Syslog's UNIX socket path to write log messages if {Type} set to 'unix'.
 
+=item B<ANSILevel>
+
+ Contains a hash reference describing the various colored debug level labels
+
+ The default definition (using Term::ANSIColor) is as follows:
+
+=over 2
+
+  'ANSILevel' => {
+     'ERR'       => colored(['white on_red'],       '[ ERROR ]'),
+     'WARN'      => colored(['black on_yellow'],    '[WARNING]'),
+     'NOTICE'    => colored(['black on_magenta'],   '[NOTICE ]'),
+     'INFO'      => colored(['white on_black'],     '[ INFO  ]'),
+     'DEBUG'     => colored(['bold green on_black'],'[ DEBUG ]'),
+     'DEBUGMAX'  => colored(['bold green on_black'],'[-DEBUG-]'),
+     'DEBUGWAIT' => colored(['bold green on_black'],'[*DEBUG*]')
+  }
+
+
+=back
+
 =back
 
 =cut
 
 sub new {
+
     # This module uses the Log::Fast library heavily.  Many of the
-    # Log::Fast variables and features can work here.
+    # Log::Fast variables and features can work here.  See the perldocs
+    # for Log::Fast for specifics.
     my $class = shift;
 
     my $self = {
-		'LogLevel'           => 'ERR',       # Default is errors only
-		'Type'               => 'fh',
-		'Path'               => '/var/log',
-		'FileHandle'         => \*STDERR,
-		'MasterStart'        => $MASTERSTART, # Pull in the script start timestamp
-		'ERR_LastStamp'      => time,
-		'WARN_LastStamp'     => time,
-		'INFO_LastStamp'     => time,
-		'NOTICE_LastStamp'   => time,
-		'DEBUG_LastStamp'    => time,
-		'DEBUGMAX_LastStamp' => time,
-		'LOG'                => $LOG, # Pull in the global Log::Fast object.
-		'Color'              => 1,
-		'DateStamp'          => colored(['yellow on_black'],'%D'),
-		'TimeStamp'          => colored(['yellow on_black'],'%T'),
-		'Padding'            => -25,
-		'Prefix'             => '',
-		@_
+        'LogLevel'           => 'ERR',                                # Default is errors only
+        'Type'               => 'fh',                                 # Default is a filehandle
+        'Path'               => '/var/log',                           # Default path should type be unix
+        'FileHandle'         => \*STDERR,                             # Default filehandle is STDERR
+        'MasterStart'        => $MASTERSTART,                         # Pull in the script start timestamp
+        'ERR_LastStamp'      => time,                                 # Initialize the ERR benchmark
+        'WARN_LastStamp'     => time,                                 # Initialize the WARN benchmark
+        'INFO_LastStamp'     => time,                                 # Initialize the INFO benchmark
+        'NOTICE_LastStamp'   => time,                                 # Initialize the NOTICE benchmark
+        'DEBUG_LastStamp'    => time,                                 # Initialize the DEBUG benchmark
+        'DEBUGMAX_LastStamp' => time,                                 # Initialize the DEBUGMAX benchmark
+        'LOG'                => $LOG,                                 # Pull in the global Log::Fast object.
+        'Color'              => 1,                                    # Default to colorized output
+        'DateStamp'          => colored(['yellow on_black'], '%D'),
+        'TimeStamp'          => colored(['yellow on_black'], '%T'),
+        'Padding'            => -25,                                  # Default padding is 25 spaces
+        'Prefix'             => '',
+        'ANSILevel'          => {
+            'ERR'       => colored(['white on_red'],       '[ ERROR ]'),
+            'WARN'      => colored(['black on_yellow'],    '[WARNING]'),
+            'NOTICE'    => colored(['black on_magenta'],   '[NOTICE ]'),
+            'INFO'      => colored(['white on_black'],     '[ INFO  ]'),
+            'DEBUG'     => colored(['bold green on_black'],'[ DEBUG ]'),
+            'DEBUGMAX'  => colored(['bold green on_black'],'[-DEBUG-]'),
+            'DEBUGWAIT' => colored(['bold green on_black'],'[*DEBUG*]')
+        },
+        @_
     };
-	my @Keys = (keys %{$self});
-	foreach my $Key (@Keys) {
-		my $upper = uc($Key);
-		if ($Key ne $upper) {
-			$self->{$upper} = $self->{$Key};
-			# This fixes a documentation error for past versions
-			$self->{$upper} = 'ERR' if ($upper eq 'LOGLEVEL' && $self->{$upper} =~ /^ERROR$/i);
-			delete($self->{$Key});
-		}
-	}
+    my @Keys = (keys %{$self});
+    foreach my $Key (@Keys) {
+        my $upper = uc($Key);
+        if ($Key ne $upper) {
+            $self->{$upper} = $self->{$Key};
+
+            # This fixes a documentation error for past versions
+            $self->{$upper} = 'ERR' if ($upper eq 'LOGLEVEL' && $self->{$upper} =~ /^ERROR$/i);
+            delete($self->{$Key});
+        }
+    }
+
     # This instructs the ANSIColor library to turn off coloring,
     # if the Color attribute is set to zero.
     $ENV{'ANSI_COLORS_DISABLED'} = 1 if ($self->{'COLOR'} =~ /0|FALSE|OFF/i);
 
-    %ANSILevel = (
-		'ERR'       => colored(['white on_red'],       '[ ERROR ]'),
-		'WARN'      => colored(['black on_yellow'],    '[WARNING]'),
-		'NOTICE'    => colored(['black on_magenta'],   '[NOTICE ]'),
-		'INFO'      => colored(['white on_black'],     '[ INFO  ]'),
-		'DEBUG'     => colored(['bold green on_black'],'[ DEBUG ]'),
-		'DEBUGMAX'  => colored(['bold green on_black'],'[-DEBUG-]')
-    );
+    # If COLOR is FALSE, then clear color data from ANSILEVEL, as these were
+    # defined before color was turned off.
+    $self->{'ANSILEVEL'} = {
+        'ERR'       => '[ ERROR ]',
+        'WARN'      => '[WARNING]',
+        'NOTICE'    => '[NOTICE ]',
+        'INFO'      => '[ INFO  ]',
+        'DEBUG'     => '[ DEBUG ]',
+        'DEBUGMAX'  => '[-DEBUG-]',
+        'DEBUGWAIT' => '[*DEBUG*]'
+    } if ($self->{'COLOR'} =~ /0|FALSE|OFF/i);
+    %ANSILevel = %{$self->{'ANSILEVEL'}};
+
     # This assembles the Time and Date stamping output.  If any of the
     # variables are blank, then that part will be disabled.
     $self->{'PREFIX'} = $self->{'DATESTAMP'} . ' ' . $self->{'TIMESTAMP'};
 
     # The Global loglevel is set here.
     if ($self->{'LOGLEVEL'} eq 'VERBOSE') {
-		$self->{'LOG'}->level('INFO');
+        $self->{'LOG'}->level('INFO');
     } elsif ($self->{'LOGLEVEL'} eq 'DEBUGMAX') {
-		$self->{'LOG'}->level('DEBUG');
+        $self->{'LOG'}->level('DEBUG');
     } else {
-		$self->{'LOG'}->level( $self->{'LOGLEVEL'} );
+        $self->{'LOG'}->level($self->{'LOGLEVEL'});
     }
 
-    $self->{'LOG'}->config({
-							   'type'   => $self->{'TYPE'},
-							   'path'   => $self->{'PATH'},
-							   'prefix' => $self->{'PREFIX'},
-							   'fh'     => $self->{'FILEHANDLE'}
-						   });
-    $self->{'LOG'}->DEBUG('   %.02f%s %s',0,$ANSILevel{'DEBUG'}, colored(['black on_white'],'----- Script begin -----'));
-    bless($self,$class);
-    return($self);
-}
+    $self->{'LOG'}->config(
+        {
+            'type'   => $self->{'TYPE'},
+            'path'   => $self->{'PATH'},
+            'prefix' => $self->{'PREFIX'},
+            'fh'     => $self->{'FILEHANDLE'}
+        }
+    );
+    $self->{'LOG'}->DEBUG('   %.02f%s %s', 0, $self->{'ANSILEVEL'}->{'DEBUG'}, colored(['black on_white'], '----- Script begin -----'));
+    bless($self, $class);
+    return ($self);
+} ## end sub new
 
 =head2 debug
 
@@ -346,67 +408,117 @@ sub debug {
 
     my @messages;
 
-    if (ref($msgs) eq 'SCALAR') {
-		push(@messages,$msgs);
+    if (ref($msgs) eq 'SCALAR' || ref($msgs) eq '') {
+        push(@messages, $msgs);
     } elsif (ref($msgs) eq 'ARRAY') {
-		@messages = @{$msgs};
+        @messages = @{$msgs};
     } else {
-		push(@messages,Dumper($msgs));
+        push(@messages, Dumper($msgs));
     }
 
     my ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask) = caller(1);
-    if (! defined($subroutine) || $subroutine eq '') {
-		$subroutine = 'main';
+    if (!defined($subroutine) || $subroutine eq '') {    # If there is no subroutine name, then it's usually the "main" namespace
+        $subroutine = 'main';
     }
-    if (length($subroutine) > abs($self->{'PADDING'})) {
-		$self->{'PADDING'} = 0 - length($subroutine);
+    if (length($subroutine) > abs($self->{'PADDING'})) {    # Auto adjust padding if it needs to grow
+        $self->{'PADDING'} = 0 - length($subroutine);
     }
-    my $thisBench  = sprintf('%7s',sprintf(' %.02f',time - $self->{$level . '_LASTSTAMP'})) . $ANSILevel{$level} . '[' . colored(['bold cyan on_black'],sprintf('%' . $self->{'PADDING'} . 's>%04d',$subroutine,$cline)) . ']';
-    my $thisBench2 = ' ' x 7 . $ANSILevel{$level} . '[' . colored(['bold cyan on_black'],sprintf('%' . $self->{'PADDING'} . 's>%04d',$subroutine,$cline)) . ']';
-    my $nested = do { my $n=0; 1 while caller(2 + $n++); ' ' x $n };
-	my $first = 1;
-    foreach my $msg (@messages) {
-		if ($msg =~ /\n/s) {
-			my @message = split(/\n/,$msg);
-			foreach my $line (@message) {
-				if ($level eq 'INFO' && $self->{'LOGLEVEL'} eq 'VERBOSE') {
-					$self->{'LOG'}->config({'prefix' => ''});
-					$self->{'LOG'}->$level($line);
-					$self->{'LOG'}->config({'prefix' => $self->{'PREFIX'}});
-				} elsif ($level eq 'DEBUGMAX') {
-					if ($self->{'LOGLEVEL'} eq 'DEBUGMAX') {
-						if ($first) {
-							$self->{'LOG'}->DEBUG($thisBench . $nested . $line);
-						} else {
-							$self->{'LOG'}->DEBUG($thisBench2 . $nested . $line);
-						}
-					}
-				} else {
-					if ($first) {
-						$self->{'LOG'}->$level($thisBench . $nested . $line);
-					} else {
-						$self->{'LOG'}->$level($thisBench2 . $nested . $line);
-					}
-				}
-				$first = 0;
-			}
-		} else {
-			if ($level eq 'INFO' && $self->{'LOGLEVEL'} eq 'VERBOSE') {
-				$self->{'LOG'}->config({'prefix' => ''});
-				$self->{'LOG'}->INFO($msg);
-				$self->{'LOG'}->config({'prefix' => $self->{'PREFIX'}});
-			} elsif ($level eq 'DEBUGMAX') {
-				if ($self->{'LOGLEVEL'} eq 'DEBUGMAX') {
-					$self->{'LOG'}->DEBUG($thisBench . $nested . $msg);
-				}
-			} else {
-				$self->{'LOG'}->$level($thisBench . $nested . $msg);
-			}
-		}
-		$first = 0;
+    my $thisBench = sprintf('%7s', sprintf(' %.02f', time - $self->{$level . '_LASTSTAMP'})) . $self->{'ANSILEVEL'}->{$level} . '[' . colored(['bold cyan on_black'], sprintf('%' . $self->{'PADDING'} . 's>%04d', $subroutine, $cline)) . ']';
+
+    # For multiline output, only output the bench data on the first line.  Use padded spaces for the rest.
+    my $thisBench2 = ' ' x 7 . $self->{'ANSILEVEL'}->{$level} . '[' . colored(['bold cyan on_black'], sprintf('%' . $self->{'PADDING'} . 's>%04d', $subroutine, $cline)) . ']';
+    my $nested = do {my $n = 0; 1 while caller(2 + $n++); ' ' x $n};    # add padding to nested lines
+    my $first = 1;                                                      # Set the first line flag.
+    foreach my $msg (@messages) {                                       # Loop through each line of output and format accordingly.
+        if ($msg =~ /\n/s) {                                            # If the line contains newlines, then it too must be split into multiple lines.
+            my @message = split(/\n/, $msg);
+            foreach my $line (@message) {                               # Loop through the split lines and format accordingly.
+                $self->send_to_logger($level, $line, $first, $thisBench, $thisBench2, $nested);
+                $first = 0;                                             # Clear the first line flag.
+            }
+        } else {    # This line does not contain newlines.  Treat it as a single line.
+            $self->send_to_logger($level, $msg, $first, $thisBench, $thisBench2, $nested);
+        }
+        $first = 0;    # Clear the first line flag.
     }
     $self->{$level . '_LASTSTAMP'} = time;
-}
+} ## end sub debug
+
+=head2 send_to_logger
+
+This is just used as a slave to 'debug' to shorten the code of this module.
+
+The parameters passed are as follows:
+
+=over 1
+
+=item B<LEVEL>
+
+ This is the passed through log level from 'debug'.
+
+=item B<MESSAGE>
+
+ This is the single line formatted debug string to pass to Log::Fast
+
+=item B<FIRST LINE FLAG>
+
+ This is the flag signaling if this is the first line of debug output in this
+ debug message.  It is read-only.
+
+=item B<BENCHMARK PREFIX>
+
+ Contains the formatted prefix string containing benchmark data.
+
+=item B<NON-BENCHMARK PREFIX>
+
+ Contains the formatted prefix string not containing benchmark data.
+
+=item B<NAMESPACE TREE>
+
+ Contains the string with the formatted namespace parent.
+
+=back
+
+=cut
+
+sub send_to_logger {    # This actually simplifies the previous sub
+    my $self       = shift;
+    my $level      = shift;
+    my $msg        = shift;
+    my $first      = shift;
+    my $thisBench  = shift;
+    my $thisBench2 = shift;
+    my $nested     = shift;
+
+    if ($level eq 'INFO' && $self->{'LOGLEVEL'} eq 'VERBOSE') {    # Trap verbose flag and temporarily drop the prefix.
+        $self->{'LOG'}->config({'prefix' => ''});
+        $self->{'LOG'}->INFO($msg);
+        $self->{'LOG'}->config({'prefix' => $self->{'PREFIX'}});
+    } elsif ($level eq 'DEBUGMAX') {                               # Special version of DEBUG.  Outputs as DEBUG in Log::Fast
+        if ($self->{'LOGLEVEL'} eq 'DEBUGMAX') {
+            if ($first) {                                          # If the first line, then output benchmark info.
+                $self->{'LOG'}->DEBUG($thisBench . $nested . $msg);
+            } else {                                               # If not the first line, then leave out the benchmark info.
+                $self->{'LOG'}->DEBUG($thisBench2 . $nested . ' ' . $msg);
+            }
+        }
+    } elsif ($level eq 'DEBUGWAIT') {                              # Same as above, but waits for a keypress.
+        if ($self->{'LOGLEVEL'} eq 'DEBUGWAIT') {
+            if ($first) {
+                $self->{'LOG'}->DEBUG($thisBench . $nested . $msg);
+            } else {
+                $self->{'LOG'}->DEBUG($thisBench2 . $nested . ' ' . $msg);
+            }
+            <>; # Wait for keypress
+        }
+    } else {
+        if ($first) {                                              # If the first line, then output benchmark info.
+            $self->{'LOG'}->$level($thisBench . $nested . $msg);
+        } else {                                                   # If not the first line, then leave out the benchmark info.
+            $self->{'LOG'}->$level($thisBench2 . $nested . ' ' . $msg);
+        }
+    }
+} ## end sub send_to_logger
 
 =head1 AUTHOR
 
@@ -419,7 +531,7 @@ modify it under the same terms as Perl itself.
 
 =head1 VERSION
 
-Version 0.05    (April 14, 2014)
+Version 0.08    (July 22, 2014)
 
 =head1 BUGS
 
