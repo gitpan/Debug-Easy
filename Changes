@@ -39,3 +39,12 @@ Revision history for Debug-Easy
         
         Tweaks to the Makefile.PL build script to allow for parallel testing
 
+0.08    July 23, 2014
+        Added DEBUGWAIT experimental debug level.
+
+0.09    July 25, 2014
+        Removed the Perldocs for 'send_to_logger' and made it an
+        internal class only by renaming it '_send_to_logger'.
+        
+        Made 'Data::Dumper::Simple' optional, and will fall back to
+        just 'Data::Dumper' if it cannot find it.

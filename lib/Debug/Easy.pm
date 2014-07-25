@@ -13,13 +13,15 @@ use strict;
 use Term::ANSIColor;
 use Log::Fast;
 use Time::HiRes qw(time);
-use Data::Dumper::Simple; # You can use Data::Dumper, but it is less friendly
+if (! eval 'use Data::Dumper::Simple') { # You can use Data::Dumper, but it is less friendly
+    eval 'use Data::Dumper';
+}
 
 BEGIN {
     require Exporter;
 
     # set the version for version checking
-    our $VERSION = 0.08;
+    our $VERSION = 0.09;
 
     # Inherit from Exporter to export functions and variables
     our @ISA = qw(Exporter);
@@ -49,8 +51,6 @@ Debug::Easy - A Handy Debugging Module
 
  my $debug = Debug::Easy->new( 'LogLevel' => 'DEBUG', 'Color' => 1 );
 
- my $debug_level = 'NOTICE';
-
  # The first parameter to pass to the object is the line number.
  # Typically this is the Perl internal variable '__LINE__'.
  #
@@ -72,13 +72,15 @@ Debug::Easy - A Handy Debugging Module
  #  DEBUG     = Level 1 Debugging messages
  #  DEBUGMAX  = Level 2 Debugging messages
  #  DEBUGWAIT = Level 3 Debugging where execution is halted until a key
- #              is pressed
+ #              is pressed (EXPERIMENTAL!!)
  #
  # The third parameter is either a string or a reference to an array
  # of strings to output as multiple lines.
  #
  # Each string can contain newlines, which will also be split into
  # a separate line and formatted accordingly.
+
+ my $debug_level = 'NOTICE';
 
  $debug->debug(__LINE__,$debug_level,"Message");
 
@@ -90,7 +92,11 @@ Debug::Easy - A Handy Debugging Module
  $debug->debug(__LINE__,'DEBUGMAX', ['Level 2 Debug message']);
  $debug->debug(__LINE__,'DEBUGWAIT',['Level 3 Debug message with wait']);
 
- my @messages = ('First Message','Second Message',"Third\nMessage");
+ my @messages = (
+    'First Message',
+    'Second Message','
+    "Third Message First Line\nThird Message Second Line"
+ );
 
  $debug->debug(__LINE__,$debug_level,\@messages);
 
@@ -196,7 +202,7 @@ This level shows all messages, but also waits for a keypress.
 
  This turns on colored output.  This makes it easier to spot all of
  the different types of messages throughout a sea of debug output.
- You can pipe the output to Less, and see color, by using it's
+ You can read the output with Less, and see color, by using it's
  switch "-r".
 
 =back
@@ -365,7 +371,7 @@ sub new {
         $self->{'LOG'}->level($self->{'LOGLEVEL'});
     }
 
-    $self->{'LOG'}->config(
+    $self->{'LOG'}->config( # Configure Log::Fast
         {
             'type'   => $self->{'TYPE'},
             'path'   => $self->{'PATH'},
@@ -373,6 +379,7 @@ sub new {
             'fh'     => $self->{'FILEHANDLE'}
         }
     );
+    # Signal the script has started (and logger initialized)
     $self->{'LOG'}->DEBUG('   %.02f%s %s', 0, $self->{'ANSILEVEL'}->{'DEBUG'}, colored(['black on_white'], '----- Script begin -----'));
     bless($self, $class);
     return ($self);
@@ -433,55 +440,18 @@ sub debug {
         if ($msg =~ /\n/s) {                                            # If the line contains newlines, then it too must be split into multiple lines.
             my @message = split(/\n/, $msg);
             foreach my $line (@message) {                               # Loop through the split lines and format accordingly.
-                $self->send_to_logger($level, $line, $first, $thisBench, $thisBench2, $nested);
+                $self->_send_to_logger($level, $line, $first, $thisBench, $thisBench2, $nested);
                 $first = 0;                                             # Clear the first line flag.
             }
         } else {    # This line does not contain newlines.  Treat it as a single line.
-            $self->send_to_logger($level, $msg, $first, $thisBench, $thisBench2, $nested);
+            $self->_send_to_logger($level, $msg, $first, $thisBench, $thisBench2, $nested);
         }
         $first = 0;    # Clear the first line flag.
     }
     $self->{$level . '_LASTSTAMP'} = time;
 } ## end sub debug
 
-=head2 send_to_logger
-
-This is just used as a slave to 'debug' to shorten the code of this module.
-
-The parameters passed are as follows:
-
-=over 1
-
-=item B<LEVEL>
-
- This is the passed through log level from 'debug'.
-
-=item B<MESSAGE>
-
- This is the single line formatted debug string to pass to Log::Fast
-
-=item B<FIRST LINE FLAG>
-
- This is the flag signaling if this is the first line of debug output in this
- debug message.  It is read-only.
-
-=item B<BENCHMARK PREFIX>
-
- Contains the formatted prefix string containing benchmark data.
-
-=item B<NON-BENCHMARK PREFIX>
-
- Contains the formatted prefix string not containing benchmark data.
-
-=item B<NAMESPACE TREE>
-
- Contains the string with the formatted namespace parent.
-
-=back
-
-=cut
-
-sub send_to_logger {    # This actually simplifies the previous sub
+sub _send_to_logger {    # This actually simplifies the previous class
     my $self       = shift;
     my $level      = shift;
     my $msg        = shift;
@@ -502,7 +472,7 @@ sub send_to_logger {    # This actually simplifies the previous sub
                 $self->{'LOG'}->DEBUG($thisBench2 . $nested . ' ' . $msg);
             }
         }
-    } elsif ($level eq 'DEBUGWAIT') {                              # Same as above, but waits for a keypress.
+    } elsif ($level eq 'DEBUGWAIT') {                              # Same as above, but waits for a keypress.  EXPERIMENTAL
         if ($self->{'LOGLEVEL'} eq 'DEBUGWAIT') {
             if ($first) {
                 $self->{'LOG'}->DEBUG($thisBench . $nested . $msg);
@@ -531,7 +501,7 @@ modify it under the same terms as Perl itself.
 
 =head1 VERSION
 
-Version 0.08    (July 22, 2014)
+Version 0.09    (July 25, 2014)
 
 =head1 BUGS
 
