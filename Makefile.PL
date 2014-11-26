@@ -13,13 +13,16 @@ WriteMakefile(
     MIN_PERL_VERSION   => 5.006,
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker'  => 0,
+    },
+    BUILD_REQUIRES => {
+        'Test::More' => 0,
+    },
+    PREREQ_PM      => {
         'Data::Dumper::Simple' => 0,
         'Log::Fast'            => 0,
         'Time::HiRes'          => 0,
-        'Term::ANSIColor'      => 0,
+        'Term::ANSIColor'      => 4.00,
     },
-    BUILD_REQUIRES => {'Test::More' => 0,},
-    PREREQ_PM      => {},
     dist  => {COMPRESS => 'gzip -9f', SUFFIX => 'gz',},
     clean => {FILES    => 'Debug-Easy-*'},
 );
@@ -41,7 +44,7 @@ subdirs-test ::
 
 
 test_dynamic :: pure_all
-\tHARNESS_OPTIONS=j9:c PERL_DL_NONLAZY=1 \$(FULLPERLRUN) "-MExtUtils::Command::MM" "-MTest::Harness" "-e" "undef *Test::Harness::Switches; test_harness(\$(TEST_VERBOSE), '\$(INST_LIB)', '\$(INST_ARCHLIB)')" \$(TEST_FILES)
+\tPERL_DL_NONLAZY=1 \$(FULLPERLRUN) "-MExtUtils::Command::MM" "-MTest::Harness" "-e" "undef *Test::Harness::Switches; test_harness(\$(TEST_VERBOSE), '\$(INST_LIB)', '\$(INST_ARCHLIB)')" \$(TEST_FILES)
 
 testdb_dynamic :: pure_all
 \tPERL_DL_NONLAZY=1 \$(FULLPERLRUN) \$(TESTDB_SW) "-I\$(INST_LIB)" "-I\$(INST_ARCHLIB)" \$(TEST_FILE)

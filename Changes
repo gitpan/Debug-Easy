@@ -48,3 +48,9 @@ Revision history for Debug-Easy
         
         Made 'Data::Dumper::Simple' optional, and will fall back to
         just 'Data::Dumper' if it cannot find it.
+
+0.10    November 26, 2014
+        Made the LogLevel parameter case-insensitive.
+        Tweaked the Makefile.PL to be more CPAN friendly.
+        The next revision will use Build.PL.
+

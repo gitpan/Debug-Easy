@@ -21,19 +21,19 @@ BEGIN {
     require Exporter;
 
     # set the version for version checking
-    our $VERSION = 0.09;
+    our $VERSION = 0.10;
 
     # Inherit from Exporter to export functions and variables
     our @ISA = qw(Exporter);
 
     # Functions and variables which are exported by default
-    our @EXPORT = qw(@Levels);
+    our @EXPORT = qw();
 
     # Functions and variables which can be optionally exported
-    our @EXPORT_OK = qw();
+    our @EXPORT_OK = qw(@Levels);
 } ## end BEGIN
 
-# Not used, but exported if the coder wants to use it as some sort
+# Not used, but optionally exported if the coder wants to use it as some sort
 # of index or reference.
 our @Levels = qw( ERR WARN NOTICE INFO VERBOSE DEBUG DEBUGMAX DEBUGWAIT );
 
@@ -120,7 +120,7 @@ All of this fully controllable by the coder.
 
 It is essentially a smart wrapper on top of Log::Fast to enhance it.
 
-=head1 EXPORTED VARIABLES
+=head1 EXPORTABLE VARIABLES
 
 =head2 @Levels
 
@@ -336,8 +336,13 @@ sub new {
             $self->{$upper} = $self->{$Key};
 
             # This fixes a documentation error for past versions
-            $self->{$upper} = 'ERR' if ($upper eq 'LOGLEVEL' && $self->{$upper} =~ /^ERROR$/i);
+            if ($upper eq 'LOGLEVEL') {
+                $self->{$upper} = 'ERR' if ($self->{$upper} =~ /^ERROR$/i);
+                $self->{$upper} = uc($self->{$upper}); # Make loglevels case insensitive
+            }
             delete($self->{$Key});
+        } elsif ($Key eq 'LOGLEVEL') { # Make loglevels case insensitive
+            $self->{$upper} = uc($self->{$upper});
         }
     }
 
@@ -501,7 +506,7 @@ modify it under the same terms as Perl itself.
 
 =head1 VERSION
 
-Version 0.09    (July 25, 2014)
+Version 0.10    (November 26, 2014)
 
 =head1 BUGS
 
@@ -587,6 +592,3 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 =cut
 
 1;
-
-__END__
-
