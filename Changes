@@ -54,3 +54,8 @@ Revision history for Debug-Easy
         Tweaked the Makefile.PL to be more CPAN friendly.
         The next revision will use Build.PL.
 
+0.11    November 26, 2014
+        Data::Dumper::Simple is now a requirement.
+
+        Some of the test files worked incorrectly in Perl versions < 5.10
+        That should be fixed now.

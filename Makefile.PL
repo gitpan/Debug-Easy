@@ -18,9 +18,9 @@ WriteMakefile(
         'Test::More' => 0,
     },
     PREREQ_PM      => {
-        'Data::Dumper::Simple' => 0,
-        'Log::Fast'            => 0,
-        'Time::HiRes'          => 0,
+        'Data::Dumper::Simple' => 0.10,
+        'Log::Fast'            => 1.00,
+        'Time::HiRes'          => 1.00,
         'Term::ANSIColor'      => 4.00,
     },
     dist  => {COMPRESS => 'gzip -9f', SUFFIX => 'gz',},

@@ -13,15 +13,13 @@ use strict;
 use Term::ANSIColor;
 use Log::Fast;
 use Time::HiRes qw(time);
-if (! eval 'use Data::Dumper::Simple') { # You can use Data::Dumper, but it is less friendly
-    eval 'use Data::Dumper';
-}
+use Data::Dumper::Simple;
 
 BEGIN {
     require Exporter;
 
     # set the version for version checking
-    our $VERSION = 0.10;
+    our $VERSION = 0.11;
 
     # Inherit from Exporter to export functions and variables
     our @ISA = qw(Exporter);
@@ -506,7 +504,7 @@ modify it under the same terms as Perl itself.
 
 =head1 VERSION
 
-Version 0.10    (November 26, 2014)
+Version 0.11    (November 26, 2014)
 
 =head1 BUGS
 

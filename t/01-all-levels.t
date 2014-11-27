@@ -1,5 +1,5 @@
 #!perl -T
-use 5.006;
+use 5.008;
 use strict;
 use warnings FATAL => 'all';
 use Test::More;
@@ -12,10 +12,7 @@ my @CodeLevel = ('[ ERROR ]', '[WARNING]', '[NOTICE ]', '[ INFO  ]', '[ DEBUG ]'
 
 SKIP: {
 
-    my ($major, $minor, $Sub) = split(/\./, substr($^V, 1));
-    my $version = 0 + sprintf('%d.%03d%03d', $major, $minor, $Sub);
-
-    skip 'Perl version < 5.10 skipping tests', 114 if ($version < 5.010);
+    skip 'Perl version < 5.10 skipping tests', 114 if ($] < 5.010);
 
     my $stderr;
 
