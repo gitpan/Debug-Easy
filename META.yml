@@ -23,4 +23,4 @@ requires:
   Term::ANSIColor: '4'
   Time::HiRes: '1'
   perl: '5.006'
-version: 0.11
+version: 0.12

@@ -2,11 +2,6 @@ Debug-Easy
 
 INSTALLATION
 
-While it is not required, it is highly suggested you have the module
-'Data::Dumper::Simple' installed.  It gives much more friendly
-output than 'Data::Dumper'.  Debug::Easy will use it if it is
-installed.
-
 To install this module, run the following commands:
 
 	perl Makefile.PL

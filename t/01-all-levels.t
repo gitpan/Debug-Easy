@@ -12,7 +12,7 @@ my @CodeLevel = ('[ ERROR ]', '[WARNING]', '[NOTICE ]', '[ INFO  ]', '[ DEBUG ]'
 
 SKIP: {
 
-    skip 'Perl version < 5.10 skipping tests', 114 if ($] < 5.010);
+    skip 'Perl version < 5.10 skipping tests', 114 if ($] < 5.010000);
 
     my $stderr;
 
